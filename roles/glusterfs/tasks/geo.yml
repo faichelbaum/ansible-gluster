@@ -1,0 +1,130 @@
+- name: OS | Ensures various folders exist
+  file:
+    path: '{{ item }}'
+    state: directory
+  with_items:
+  - '/root/.ssh'
+  - '/var/lib/glusterd/geo-replication/'
+
+- name: ansible | Clean up Slaves authorized_keys
+  lineinfile:
+    path: "/root/.ssh/authorized_keys"
+    state: absent
+    regex: "{{ item }}$"
+  with_items:
+  - "{{ groups['fs_masters'] }}"
+  when: "'fs_slaves' in group_names"
+
+- fail:
+  msg: "/!\\ Beware to generate your own georep ssh key with the related pub key before moving on"
+
+- name: ansible | Import pre-generated SSH Public key
+  authorized_key:
+    user: root
+    state: present
+    key: "{{ lookup('file', '/etc/ansible/roles/glusterfs/files/georep.pub') }}" 
+
+- name: OS | Import pre-generated keys to root user
+  copy: 
+    src: '{{ item }}'
+    dest: "/root/.ssh/{{ item|basename|regex_replace('georep(.*)','id_rsa\\1')}}"
+    mode: 0600
+  with_items:
+  - /etc/ansible/roles/glusterfs/files/georep.pub
+  - /etc/ansible/roles/glusterfs/files/georep
+
+- name: OS | Import pre-generated keys to default Gluster location
+  copy: 
+    src: '{{ item }}'
+    dest: "/var/lib/glusterd/geo-replication/{{ item|basename|regex_replace('georep(.*)','secret.pem\\1')}}"
+    mode: 0600
+  with_items:
+  - /etc/ansible/roles/glusterfs/files/georep.pub
+  - /etc/ansible/roles/glusterfs/files/georep
+
+- name: OS | Gather fingerprint from each node
+  shell: 'ssh-keyscan -H {{item}}'
+  register: keyscan
+  with_items:
+  - "{{ groups['fs_slaves'] }}"
+  - "{{ groups['fs_masters'] }}"
+
+- name: ansible | Convert fingerprints to set_fact
+  set_fact:
+    fingerprints: "{{ fingerprints|default([]) + [ { 'host': item.item, 'keys': item.stdout_lines} ] }}"
+  with_items: "{{ keyscan.results }}"
+
+- name: ansible | Add fingerprints to known_hosts
+  known_hosts:
+    path: /root/.ssh/known_hosts
+    key: "{{ item.0.host }} {{ item.1 | regex_replace('^.+ (.+) (.+)$', '\\1 \\2') }}"
+    name: "{{ item.0.host }}"
+    hash_host: yes
+  with_subelements:
+  - '{{ fingerprints }}'
+  - keys
+
+- name: glusterfs | Generate Geo-rep session specific ssh-keys (masters)
+  shell: "gluster system:: execute gsec_create"
+  when: "'01' in inventory_hostname and 'fs_masters' in group_names"
+
+- name: glusters | Tuning GlusterFS param for geo-replication
+  shell: "gluster volume set {{ gluster_georep_mastervol }} {{ item.key }} {{ item.value }}"
+  when: "'01' in inventory_hostname and 'fs_masters' in group_names"
+  with_items:
+  - { key: 'rollover-time', value: '10' }
+  - { key: 'fsync-interval', value: '2' }
+
+- name: glusters | Tuning GlusterFS param for geo-replication (slave)
+  shell: "gluster volume set {{ gluster_georep_slavevol }} {{ item.key }} {{ item.value }}"
+  when: "'01' in inventory_hostname and 'fs_slaves' in group_names"
+  with_items:
+  - { key: 'batch-fsync-delay-usec', value: '0'}
+  - { key: 'rollover-time', value: '10' }
+  - { key: 'fsync-interval', value: '2' }
+
+- name: glusterfs | Create Geo-rep session
+  shell: "gluster volume geo-replication {{ gluster_georep_mastervol }} {{ groups['fs_slaves'][0] }}::{{ gluster_georep_slavevol }} create push-pem"
+  register: 'create_georep_session'
+  failed_when: "'is already created.' not in create_georep_session.stderr and 'has been successful' not in create_georep_session.stdout and 'is not empty' not in create_georep_session.stderr"
+  when: "'01' in inventory_hostname and 'fs_masters' in group_names"
+
+- name: glusterfs | Configure params
+  shell: "gluster volume geo-replication {{ gluster_georep_mastervol }} {{ groups['fs_slaves'][0] }}::{{ gluster_georep_slavevol }} config {{ item.key }} {{ item.value }}"
+  with_items:
+  - { key: 'sync-jobs', value: '64' }
+  - { key: 'log-level', value: 'ERROR' }
+  - { key: 'gluster-log-level', value: 'ERROR' }
+  - { key: 'changelog-log-level', value: 'ERROR' }
+  - { key: 'remote-gsyncd', value: '/usr/lib/x86_64-linux-gnu/glusterfs/gsyncd' }
+  when: "'01' in inventory_hostname and 'fs_masters' in group_names"
+
+- name: glusterfs | Start geo-replication
+  shell: "gluster volume geo-replication {{ gluster_georep_mastervol }} {{ groups['fs_slaves'][0] }}::{{ gluster_georep_slavevol }} start"
+  register: start_georep
+  failed_when: "'already started' not in start_georep.stderr"
+  when: "'01' in inventory_hostname and 'fs_masters' in group_names"
+
+- name: glusterfs | Configure additional params
+  shell: "gluster volume geo-replication {{ gluster_georep_mastervol }} {{ groups['fs_slaves'][0] }}::{{ gluster_georep_slavevol }} config {{ item.key }} {{ item.value }}"
+  with_items:
+  - { key: 'master_distribution_count', value: "{{ groups['fs_masters']|length }}" }
+  - { key: 'master_replica_count', value: "{{ groups['fs_masters']|length }}" }
+  - { key: 'use_rsync_xattrs', value: "on" }
+  - { key: 'ignore-deletes', value: "false" }
+  when: "'01' in inventory_hostname and 'fs_masters' in group_names"
+
+- name: ansible | Prepare AllowUsers for SSH
+  set_fact:
+    ssh_allow_users: "{{ ssh_allow_users|default(ansible_user) }} root@{{ hostvars[item].vrack_ip | join('') }}"
+  with_items: "{{groups['fs']}}"
+
+- name: ansible | Restrict SSH to AllowUsers
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: '^AllowUsers'
+    line: 'AllowUsers {{ ssh_allow_users }}'
+    state: present
+    create: yes
+    notify:
+    - restart sshd

@@ -1,0 +1,11 @@
+auto {{ item.if_name }}
+iface {{ item.if_name }} inet {{ item.if_mode }}
+{% if item.if_mode == 'static' %}
+  address {{ item.if_ip }}
+  netmask 255.240.0.0
+  {% if if_postup is defined and if_postup|length %}
+  {% for cmd in if_postup %}
+  post-up {{ cmd }}
+  {% endfor %}
+  {% endif %}
+{% endif %}

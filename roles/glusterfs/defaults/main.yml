@@ -1,0 +1,8 @@
+gluster_brick_dir: '/opt/brick'
+gluster_mount_dir: '/opt/self'
+gluster_brick_name: 'main'
+gluster_mount_options: "defaults,_netdev,noatime,log-level=ERROR,log-file=/var/log/gluster.log,direct-io-mode=no,fopen-keep-cache,negative-timeout=10,attribute-timeout=30,fetch-attempts=5,use-readdirp=no"
+gluster_mountbroker_root: '/var/run/gluster/mountbroker-root'
+
+fs_owner: "www-data"
+fs_group: "www-data"

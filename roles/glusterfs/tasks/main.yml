@@ -1,0 +1,30 @@
+- name: Update the /etc/hosts file with node name
+  tags: master
+  lineinfile: 
+    dest: "/etc/hosts"
+    regexp: '.*{{ item }}$' 
+    line: "{{ hostvars[item].vrack_ip }} {{item}}"
+    state: present
+    backup: yes
+  when: inventory_hostname != item
+  with_items: "{{groups['fs']}}"
+
+- include: "install.yml"
+  tags:
+  - install
+
+- name: ansible | Include GlusterFS server tasks
+  include_tasks: cluster.yml
+  tags:
+  - server
+
+- name: ansible | Include GlusterFS tuning tasks
+  include_tasks: tuning.yml
+  tags:
+  - tuning
+
+- name: ansible | Include GlusterFS geo-replication tasks
+  include_tasks: geo.yml
+  tags:
+  - geo
+

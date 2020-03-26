@@ -1,0 +1,17 @@
+[fs:children]
+fs_ca
+fs_fr
+
+[fs_ca]
+fs-ca-01
+fs-ca-02
+
+[fs_fr]
+fs-fr-01
+fs-fr-02
+
+[fs_masters:children]
+fs_fr
+
+[fs_slaves:children]
+fs_ca

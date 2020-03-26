@@ -1,0 +1,74 @@
+- name: glusterfs | Start glusterd on the nodes if not already started
+  service:
+    state: started
+    name: glusterd
+    enabled: yes
+  delegate_to: "{{ item }}"
+  run_once: true
+  with_items: "{{groups['fs']}}"
+
+- name: OS | Ensure Gluster brick and mount directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ fs_owner }}"
+    group: "{{ fs_group }}"
+    mode: 0775
+  with_items:
+  - "{{ gluster_brick_dir }}"
+  - "{{ gluster_mount_dir }}"
+
+- name: glusterfs | Check if Gluster volumes already exist
+  shell: "gluster volume info"
+  changed_when: false
+  register: gluster_volume_info
+
+- name: glusterfs | Connect to Gluster peers
+  shell: "{% for node in item.bricks %}gluster peer probe {{ node }};{% endfor %}"
+  register: gluster_peer_probe
+  changed_when: "'already in peer list' not in gluster_peer_probe.stdout"
+  failed_when: false
+  with_items: '{{ gluster_volumes }}'
+  when: "item.name in inventory_hostname and 'Volume Name: gluster' not in gluster_volume_info.stdout"
+
+- name: ansible | Generate fact - gluster_brick_config
+  set_fact: 
+    gluster_brick_config: "[]{% for volume in gluster_volumes %}+['-{{ volume.name }} {{ gluster_vol_options|default('') }} {% for brick in volume.bricks %} {{ brick }}:{{ gluster_brick_dir }}{% endfor %}']{% endfor %}"
+  with_items: '{{ gluster_volumes }}'
+  run_once: true
+
+- name: glusterfs | Create a volume
+  shell: "echo y | gluster volume create {{ gluster_brick_name }}{{ item }}"
+  register: gluster_volume_create
+  failed_when: "'already exists' not in gluster_volume_create.stderr and 'success' not in gluster_volume_create.stdout"
+  changed_when: "'success' in gluster_volume_create.stdout"
+  when: "inventory_hostname in item and '01' in inventory_hostname and 'Volume Name: gluster' not in gluster_volume_info.stdout"
+  with_items: '{{ gluster_brick_config }}'
+
+- name: gluster | Ensure Gluster volume is started.
+  shell: "gluster volume start {{ gluster_brick_name }}-{{ item.name }}"
+  register: gluster_volume_start
+  failed_when: "'already started' not in gluster_volume_start.stderr and 'success' not in gluster_volume_start.stdout"
+  changed_when: "'success' in gluster_volume_start.stdout"
+  when: "'01' in inventory_hostname and item.name in inventory_hostname and 'Volume Name: gluster' not in gluster_volume_info.stdout"
+  with_items: "{{ gluster_volumes }}"
+
+- name: gluster | Ensure the Gluster volume is mounted
+  mount:
+    name: "{{ gluster_mount_dir }}"
+    src: "127.0.0.1:/{{ gluster_brick_name }}-{{ item.name }}"
+    fstype: glusterfs
+    opts: "{{ gluster_mount_options }},backupvolfile-server={% if item.bricks|length > 2 %}{{ item.bricks|regex_replace(inventory_hostname,'')|join(':') }}{% else %}{{ item.bricks[1] }}{% endif %}"
+    state: mounted
+  when: "item.name in inventory_hostname"
+  with_items: "{{ gluster_volumes }}"
+
+- name: gluster | Enable self-healing
+  shell: "sudo gluster volume heal {{ gluster_brick_name }}-{{ item.name }} enable"
+  when: "item.name in inventory_hostname and '01' in inventory_hostname"
+  with_items: "{{ gluster_volumes }}"
+
+- name: gluster | Enable granular healing
+  shell: "sudo gluster volume heal {{ gluster_brick_name }}-{{ item.name }} granular-entry-heal enable"
+  when: "item.name in inventory_hostname and '01' in inventory_hostname"
+  with_items: "{{ gluster_volumes }}"

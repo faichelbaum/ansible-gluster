@@ -1,0 +1,142 @@
+fs_owner: "www-data"
+fs_group: "www-data"
+
+gluster_vol_options: 'replica 2 transport tcp'
+gluster_brick_dir: '/opt/brick'
+gluster_mount_dir: '/opt/self'
+gluster_brick_name: 'storage'
+gluster_volumes:
+  - name: 'fr'
+    bricks:
+    - 'fs-fr-01'
+    - 'fs-fr-02'
+  - name: 'ca'
+    bricks:
+    - 'fs-ca-01'
+    - 'fs-ca-02'
+
+gluster_tuning:
+  - volume: 'all'
+    settings:
+    - { key: 'cluster.daemon-log-level', value: 'ERROR' }
+  - volume: 'storage-fr'
+    cluster: 'fr'
+    settings:
+    - { key: 'cluster.min-free-disk', value: '3%'}
+    - { key: 'cluster.min-free-inodes', value: '1%'}
+    - { key: 'cluster.readdir-optimize', value: 'on'}
+    - { key: 'cluster.rebal-throttle', value: 'lazy'}
+    - { key: 'diagnostics.brick-log-level', value: 'ERROR'}
+    - { key: 'diagnostics.client-log-level', value: 'ERROR'}
+    - { key: 'performance.cache-max-file-size', value: '1GB'}
+    - { key: 'performance.cache-size', value: '2GB'}
+    - { key: 'performance.io-thread-count', value: '64'}
+    - { key: 'performance.high-prio-threads', value: '64'}
+    - { key: 'performance.normal-prio-threads', value: '64'}
+    - { key: 'performance.low-prio-threads', value: '64'}
+    - { key: 'performance.least-prio-threads', value: '64'}
+    - { key: 'performance.cache-size', value: '2GB'}
+    - { key: 'performance.write-behind-window-size', value: '1GB'}
+    - { key: 'performance.strict-o-direct', value: 'off'}
+    - { key: 'performance.aggregate-size', value: '256KB'}
+    - { key: 'network.ping-timeout', value: '10'}
+    - { key: 'client.event-threads', value: '16'}
+    - { key: 'client.tcp-user-timeout', value: '10'}
+    - { key: 'network.inode-lru-limit', value: '1048576'}
+    - { key: 'transport.listen-backlog', value: '65536'}
+    - { key: 'storage.linux-aio', value: 'on'}
+    - { key: 'performance.parallel-readdir', value: 'on'}
+    - { key: 'performance.iot-pass-through', value: 'on'}
+    - { key: 'config.global-threading', value: 'on'}
+    - { key: 'config.client-threads', value: '64'}
+    - { key: 'config.brick-threads', value: '64'}
+    - { key: 'client.event-threads', value: '8'}
+    - { key: 'server.event-threads', value: '8'}
+    - { key: 'group', value: 'metadata-cache'}
+    - { key: 'features.cache-invalidation', value: 'on'}
+    - { key: 'features.cache-invalidation-timeout', value: '600'}
+    - { key: 'performance.cache-invalidation', value: 'on'}
+    - { key: 'performance.md-cache-timeout', value: '600'}
+    - { key: 'performance.flush-behind', value: 'on'}
+    - { key: 'performance.read-ahead', value: 'off'}
+    - { key: 'performance.read-after-open', value: 'off' }
+    - { key: 'performance.quick-read', value: 'on'}
+    - { key: 'server.allow-insecure', value: 'on'}
+    - { key: 'cluster.read-hash-mode', value: '0'}
+    - { key: 'cluster.lookup-unhashed', value: 'auto'}
+    - { key: 'performance.nl-cache', value: 'on'}
+    - { key: 'performance.nl-cache-timeout', value: '600'}
+    - { key: 'cluster.lookup-optimize', value: 'on'}
+    - { key: 'performance.client-io-threads', value: 'on'}
+    - { key: 'performance.stat-prefetch', value: 'on'}
+    - { key: 'performance.enable-least-priority', value: 'off'}
+    - { key: 'cluster.nufa', value: 'on'}
+    - { key: 'cluster.choose-local', value: 'on'}
+    - { key: 'server.outstanding-rpc-limit', value: '2048'}
+    - { key: 'features.ctime', value: 'on'}
+    - { key: 'cluster.shd-max-threads', value: '64'}
+    - { key: 'cluster.data-self-heal-algorithm', value: 'full'}
+    - { key: 'cluster.locking-scheme', value: 'granular'}
+  - volume: 'storage-ca'
+    cluster: 'ca'
+    settings:
+    - { key: 'cluster.min-free-disk', value: '3%'}
+    - { key: 'cluster.min-free-inodes', value: '1%'}
+    - { key: 'cluster.readdir-optimize', value: 'on'}
+    - { key: 'cluster.rebal-throttle', value: 'lazy'}
+    - { key: 'diagnostics.brick-log-level', value: 'ERROR'}
+    - { key: 'diagnostics.client-log-level', value: 'ERROR'}
+    - { key: 'performance.cache-max-file-size', value: '1GB'}
+    - { key: 'performance.cache-size', value: '2GB'}
+    - { key: 'performance.io-thread-count', value: '64'}
+    - { key: 'performance.high-prio-threads', value: '64'}
+    - { key: 'performance.normal-prio-threads', value: '64'}
+    - { key: 'performance.low-prio-threads', value: '64'}
+    - { key: 'performance.least-prio-threads', value: '64'}
+    - { key: 'performance.cache-size', value: '2GB'}
+    - { key: 'performance.write-behind-window-size', value: '1GB'}
+    - { key: 'performance.strict-o-direct', value: 'off'}
+    - { key: 'performance.aggregate-size', value: '256KB'}
+    - { key: 'network.ping-timeout', value: '10'}
+    - { key: 'client.event-threads', value: '16'}
+    - { key: 'client.tcp-user-timeout', value: '10'}
+    - { key: 'network.inode-lru-limit', value: '1048576'}
+    - { key: 'transport.listen-backlog', value: '65536'}
+    - { key: 'storage.linux-aio', value: 'on'}
+    - { key: 'performance.parallel-readdir', value: 'on'}
+    - { key: 'performance.iot-pass-through', value: 'on'}
+    - { key: 'config.global-threading', value: 'on'}
+    - { key: 'config.client-threads', value: '64'}
+    - { key: 'config.brick-threads', value: '64'}
+    - { key: 'client.event-threads', value: '32'}
+    - { key: 'server.event-threads', value: '256'}
+    - { key: 'group', value: 'metadata-cache'}
+    - { key: 'features.cache-invalidation', value: 'on'}
+    - { key: 'features.cache-invalidation-timeout', value: '600'}
+    - { key: 'performance.cache-invalidation', value: 'on'}
+    - { key: 'performance.md-cache-timeout', value: '600'}
+    - { key: 'performance.flush-behind', value: 'on'}
+    - { key: 'performance.read-ahead', value: 'off'}
+    - { key: 'performance.read-after-open', value: 'off' }
+    - { key: 'performance.quick-read', value: 'on'}
+    - { key: 'server.allow-insecure', value: 'on'}
+    - { key: 'cluster.read-hash-mode', value: '0'}
+    - { key: 'cluster.lookup-unhashed', value: 'auto'}
+    - { key: 'performance.nl-cache', value: 'on'}
+    - { key: 'performance.nl-cache-timeout', value: '600'}
+    - { key: 'cluster.lookup-optimize', value: 'on'}
+    - { key: 'performance.client-io-threads', value: 'on'}
+    - { key: 'performance.stat-prefetch', value: 'on'}
+    - { key: 'performance.enable-least-priority', value: 'off'}
+    - { key: 'cluster.nufa', value: 'on'}
+    - { key: 'cluster.choose-local', value: 'on'}
+    - { key: 'server.outstanding-rpc-limit', value: '2048'}
+    - { key: 'features.ctime', value: 'on'}
+    - { key: 'cluster.shd-max-threads', value: '64'}
+    - { key: 'cluster.data-self-heal-algorithm', value: 'full'}
+    - { key: 'cluster.locking-scheme', value: 'granular'}
+
+gluster_georep_mastervol: storage-fr
+gluster_georep_slavevol: storage-ca
+gluster_georep_user: georep
+gluster_georep_group: georep

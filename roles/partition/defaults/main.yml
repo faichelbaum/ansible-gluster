@@ -1,0 +1,32 @@
+---
+mdadm_arrays:
+- name: 'md0'
+  level: '0'
+  state: 'present'
+  filesystem: 'xfs'
+  filesystem_opts: '-d su=256k,sw=10 -l version=2,su=256k -isize=2048' # RAID5/6, sw=(nb disk - pair)
+                                                                       # RAID0/1/10 sw=(nb disk)
+  opts: 'noatime,nodiratime,relatime,attr2,inode64,largeio,swalloc,logbufs=8,logbsize=256k,noquota'
+  mountpoint: '/opt'
+
+mdadm_conf: "/etc/mdadm/mdadm.conf"
+
+sysctl_config:
+  dev.raid.speed_limit_min: 50000
+  dev.raid.speed_limit_max: 5000000
+  vm.dirty_background_ratio: 1
+  vm.dirty_ratio: 75
+  vm.vfs_cache_pressure: 50
+  vm.min_free_kbytes: 262144
+
+disks:
+- 'sdc'
+- 'sdd'
+- 'sde'
+- 'sdf'
+- 'sdg'
+- 'sdh'
+- 'sdi'
+- 'sdj'
+- 'sdk'
+- 'sdl'

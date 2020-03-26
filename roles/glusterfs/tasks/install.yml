@@ -1,0 +1,34 @@
+- name: apt | Add an Apt signing key for GlusterFS
+  apt_key:
+    url: https://download.gluster.org/pub/gluster/glusterfs/7/rsa.pub
+    state: present
+
+- name: apt | Add GlusterFS repository
+  apt_repository:
+    repo: deb [arch=amd64] https://download.gluster.org/pub/gluster/glusterfs/7/LATEST/Debian/buster/amd64/apt buster main
+    state: present
+    filename: glusterfs
+
+- name: apt | Update repositories
+  apt:
+    update_cache: yes
+
+- name: OS | Install software - glusterfs-server
+  apt:
+    name: glusterfs-server
+    state: present
+  tags:
+  - server
+
+- name: OS | Install software - glusterfs-client
+  apt:
+    name: glusterfs-client
+    state: present
+  tags:
+  - client
+
+- name: OS | Install software - fuse3
+  apt:
+    name: fuse3
+    state: present
+

@@ -1,0 +1,86 @@
+- name: OS | Add or modify nofile soft/hard limit for all users
+  pam_limits:
+    domain: '*'
+    limit_type: '-'
+    limit_item: nofile
+    value: 262144
+
+- name: OS | Add or modify memlock soft/hard limit for all users
+  pam_limits:
+    domain: '*'
+    limit_type: '-'
+    limit_item: nofile
+    value: 1048576
+
+- name: OS | Add or modify nproc soft/hard limit for all users
+  pam_limits:
+    domain: '*'
+    limit_type: '-'
+    limit_item: nproc
+    value: 65536
+
+- name: OS | Tuning sysctl
+  sysctl:
+    name: '{{ item.key }}'
+    value: '{{ item.value }}'
+    sysctl_set: yes
+    state: present
+    reload: yes
+    ignoreerrors: yes
+  with_dict: '{{ sysctl_config }}'
+
+- name: OS | Configure cubic parameters
+  command: echo 2 > /sys/module/tcp_cubic/parameters/hystart_detect
+  
+- name: OS | Get physical interfaces names
+  command: find /sys/class/net -type l -not -lname '*virtual*' -printf '%f\n'
+  register: netif
+  changed_when: false
+  check_mode: false
+
+- name: OS | Prepare default interfaces config
+  template:
+    src: 'ifcfg.j2'
+    dest: '/etc/network/interfaces.d/{{ item.if_name }}.cfg'
+  loop:
+  - { if_name: lo, if_mode: loopback }
+  - { if_name: eno1, if_mode: dhcp }
+
+- name: OS | Tuning interfaces configurations (txqueuelen)
+  interfaces_file:
+    dest: '/etc/network/interfaces.d/{{ item }}.cfg'
+    iface: '{{ item }}'
+    option: post-up
+    value: 'ifconfig {{ item }} txqueuelen 10000'
+    state: present
+  with_items: '{{ netif.stdout_lines }}'
+
+- name: OS | Tuning interfaces configurations (offload parameters)
+  interfaces_file:
+    dest: '/etc/network/interfaces.d/{{ item }}.cfg'
+    iface: '{{ item }}'
+    option: post-up
+    value: 'ethtool -K {{ item }} rx off tx off'
+    state: present
+  with_items: '{{ netif.stdout_lines }}'
+
+- name: OS | Tuning interfaces configurations (RX ring)
+  interfaces_file:
+    dest: '/etc/network/interfaces.d/{{ item }}.cfg'
+    iface: '{{ item }}'
+    option: post-up
+    value: 'ethtool -G {{ item }} rx 4096'
+    state: present
+  with_items: '{{ netif.stdout_lines }}'
+
+- name: OS | Tuning interfaces configurations (TX ring)
+  interfaces_file:
+    dest: '/etc/network/interfaces.d/{{ item }}.cfg'
+    iface: '{{ item }}'
+    option: post-up
+    value: 'ethtool -G {{ item }} tx 4096'
+    state: present
+  with_items: '{{ netif.stdout_lines }}'
+
+- debug:
+    msg: '/!\ Remember to reboot your servers /!\'

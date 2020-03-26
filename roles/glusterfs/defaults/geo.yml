@@ -1,0 +1,4 @@
+gluster_georep_mastervol: mastervol
+gluster_georep_slavevol: slavevol
+gluster_georepuser: staff
+gluster_georep_masternode: "{{groups['fs_masters'][0]}}"

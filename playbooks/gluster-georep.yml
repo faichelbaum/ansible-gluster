@@ -1,0 +1,7 @@
+- hosts: fs
+  serial: 20
+
+  roles:
+    - fine-tuning
+    - partition
+    - glusterfs

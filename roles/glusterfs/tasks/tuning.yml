@@ -1,0 +1,24 @@
+- name: OS | Tuning sysctl
+  sysctl:
+    name: '{{ item.key }}'
+    value: '{{ item.value }}'
+    sysctl_set: yes
+    state: present
+    reload: yes
+    ignoreerrors: yes
+  with_items:
+  - { key: 'net.ipv4.tcp_congestion_control', value: 'htcp' }
+
+- name: glusters | Tuning GlusterFS param (global)
+  shell: "gluster volume set {{ item.0.volume }} {{ item.1.key }} {{ item.1.value }}"
+  when: "item.0.volume == 'all' and '01' in inventory_hostname"
+  with_subelements:
+  - '{{ gluster_tuning }}'
+  - settings
+
+- name: glusters | Tuning GlusterFS param (local)
+  shell: "gluster volume set {{ item.0.volume }} {{ item.1.key }} {{ item.1.value }}"
+  when: "'01' in inventory_hostname and item.0.cluster is defined and item.0.cluster in inventory_hostname"
+  with_subelements:
+  - '{{ gluster_tuning }}'
+  - settings

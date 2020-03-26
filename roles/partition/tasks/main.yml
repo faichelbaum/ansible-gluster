@@ -1,0 +1,123 @@
+- name: apt | Update repositories
+  apt:
+    update_cache: yes
+
+- name: OS | Install software - parted
+  apt:
+    name: parted
+    state: present
+
+- name: disk | Create a new primary partition
+  parted:
+    device: "/dev/{{ item }}"
+    number: 1
+    flags: [ raid ]
+    state: present
+    label: gpt
+  with_items: '{{ disks }}'
+
+- name: OS | Install software - mdadm
+  apt:
+    name: mdadm
+    state: present
+
+- name: raid | Checking Status Of Array(s)
+  shell: "cat /proc/mdstat | grep {{ item.name }}"
+  register: "raid_exist"
+  changed_when: false
+  failed_when: false
+  with_items: '{{ mdadm_arrays }}'
+  check_mode: no
+
+- name: raid | Creating Raid(s)
+  shell: "yes | mdadm --create /dev/{{ item.name }} --level={{ item.level }} --raid-devices={{ disks|count }} /dev/{{ disks| join ('1 /dev/') }}1"
+  with_items: '{{ mdadm_arrays }}'
+  when: >
+        item.state|lower == "present" and
+        raid_exist.results[0].rc != 0
+
+- name: raid | Capturing Raid Details
+  command: "mdadm --examine --scan"
+  register: "raid_details"
+  changed_when: false
+
+- name: raid | Enforce base for {{ mdadm_conf }}
+  copy:
+    content: "HOMEHOST <system>\nMAILADDR root\n"
+    dest: "{{ mdadm_conf }}"
+    force: yes
+
+- name: raid | Updating {{ mdadm_conf }}
+  lineinfile:
+    dest: "{{ mdadm_conf }}"
+    regexp: "^{{ item }}"
+    line: "{{ item }}"
+    state: "present"
+  with_items: '{{ raid_details.stdout_lines }}'
+
+- name: raid | Updating Initramfs
+  command: "update-initramfs -u"
+
+- name: raid | Daemonize Raid(s)
+  shell: "mdadm --monitor --daemonise /dev/{{ item.name }}"
+  with_items: '{{ mdadm_arrays }}'
+
+- name: OS | Install software - xfsprogs
+  apt:
+    name: xfsprogs
+    state: present
+
+- name: raid | Creating Raid(s) Filesystem
+  filesystem:
+    fstype: "{{ item.filesystem }}"
+    opts: "{{ item.filesystem_opts | default(omit) }}"
+    dev: "/dev/{{ item.name }}"
+  with_items: '{{ mdadm_arrays }}'
+  when:
+  - item.state|lower == "present"
+  - item.filesystem is defined
+
+- name: raid | Mounting Raid(s)
+  mount:
+    name: "{{ item.mountpoint }}"
+    src: "/dev/{{ item.name }}"
+    fstype: "{{ item.filesystem }}"
+    state: "mounted"
+    opts: "{{ item.opts | default(omit) }}"
+  with_items: '{{ mdadm_arrays }}'
+  when:
+  - item.state|lower == "present"
+  - item.filesystem is defined
+  - item.mountpoint is defined
+
+- name: OS | Configure I/O Scheduler to deadline
+  shell: "echo deadline > /sys/block/{{ item }}/queue/scheduler"
+  with_items: '{{ disks }}'
+
+- name: OS | Increasing the number of schedulable request
+  shell: "echo 2048 > /sys/block/{{ item }}/queue/nr_requests"
+  with_items: '{{ disks }}'
+
+- name: OS | Increase the maximum amount of read-ahead data
+  shell: "echo 4096 > /sys/block/{{ item }}/queue/read_ahead_kb"
+  with_items: '{{ disks }}'
+
+- name: OS | Disable NCQ
+  shell: "echo 1 > /sys/block/{{ item }}/device/queue_depth"
+  with_items: '{{ disks }}'
+
+- name: raid | Set strip-cache_size to 32 MB
+  shell: echo 32768 > /sys/block/{{ item.name }}/md/stripe_cache_size
+  with_items: '{{ mdadm_arrays }}'
+  when:
+  - item.level == 5
+
+- name: OS | Tuning sysctl (storage & memory)
+  sysctl:
+    name: '{{ item.key }}'
+    value: '{{ item.value }}'
+    sysctl_set: yes
+    state: present
+    reload: yes
+    ignoreerrors: yes
+  with_dict: '{{ sysctl_config }}'
